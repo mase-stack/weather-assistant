@@ -11,20 +11,39 @@
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 # See the License for the specific language governing permissions and
 # limitations under the License.
-import os
+from dotenv import load_dotenv
+load_dotenv()
 
+import os
+import logging
 import google.auth
 from fastapi import FastAPI
 from google.adk.cli.fast_api import get_fast_api_app
-from google.cloud import logging as google_cloud_logging
 
 from app.app_utils.telemetry import setup_telemetry
 from app.app_utils.typing import Feedback
 
-setup_telemetry()
-_, project_id = google.auth.default()
-logging_client = google_cloud_logging.Client()
-logger = logging_client.logger(__name__)
+class LocalLogger:
+    def __init__(self):
+        logging.basicConfig(level=logging.INFO)
+        self.logger = logging.getLogger(__name__)
+
+    def log_struct(self, data, severity="INFO"):
+        self.logger.info(f"Feedback: {data}")
+
+# Attempt to configure GCP telemetry and logging if credentials exist.
+# Fall back to local logging and disable cloud tracing if credentials are not valid.
+otel_to_cloud = False
+try:
+    setup_telemetry()
+    _, project_id = google.auth.default()
+    from google.cloud import logging as google_cloud_logging
+    logging_client = google_cloud_logging.Client()
+    logger = logging_client.logger(__name__)
+    otel_to_cloud = True
+except Exception:
+    logger = LocalLogger()
+
 allow_origins = (
     os.getenv("ALLOW_ORIGINS", "").split(",") if os.getenv("ALLOW_ORIGINS") else None
 )
@@ -44,7 +63,7 @@ app: FastAPI = get_fast_api_app(
     artifact_service_uri=artifact_service_uri,
     allow_origins=allow_origins,
     session_service_uri=session_service_uri,
-    otel_to_cloud=True,
+    otel_to_cloud=otel_to_cloud,
 )
 app.title = "weather-assistant"
 app.description = "API for interacting with the Agent weather-assistant"

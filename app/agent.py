@@ -13,6 +13,9 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from dotenv import load_dotenv
+load_dotenv()
+
 import datetime
 from zoneinfo import ZoneInfo
 
@@ -24,10 +27,16 @@ from google.genai import types
 import os
 import google.auth
 
-_, project_id = google.auth.default()
-os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
-os.environ["GOOGLE_CLOUD_LOCATION"] = "global"
-os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+# Only configure Vertex AI settings if GCP default credentials are available.
+# Otherwise, the SDK defaults to using Google AI Studio (via GEMINI_API_KEY).
+try:
+    _, project_id = google.auth.default()
+    if project_id:
+        os.environ["GOOGLE_CLOUD_PROJECT"] = project_id
+        # Uncomment the line below if you want to force Vertex AI instead of Google AI Studio
+        # os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "True"
+except Exception:
+    pass
 
 
 def get_weather(query: str) -> str:
